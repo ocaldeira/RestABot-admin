@@ -1,0 +1,201 @@
+import {
+    Restaurant,
+    SearchResponse,
+    Stats,
+    WebConfig,
+    EmailDetail,
+} from "@/types/restaurant";
+import { Payment } from "@/types/payment";
+
+const API_BASE_URL = "http://localhost:8000";
+
+async function handleResponse<T>(response: Response): Promise<T> {
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    return response.json();
+}
+
+export const api = {
+    // Search for restaurants
+    searchRestaurants: async (
+        query: string,
+        location: string,
+        limit: number = 20,
+        pagetoken?: string
+    ): Promise<SearchResponse> => {
+        const params = new URLSearchParams({
+            query,
+            location,
+            limit: limit.toString(),
+        });
+        if (pagetoken) {
+            params.append("pagetoken", pagetoken);
+        }
+        const response = await fetch(`${API_BASE_URL}/search?${params.toString()}`);
+        return handleResponse<SearchResponse>(response);
+    },
+
+    // Generate Web Config (Create)
+    createWebConfig: async (propertyId: string): Promise<WebConfig> => {
+        const response = await fetch(
+            `${API_BASE_URL}/create?propertyId=${propertyId}`,
+            {
+                method: "POST",
+            }
+        );
+        return handleResponse<WebConfig>(response);
+    },
+
+    // Get Admin Stats
+    getStats: async (): Promise<Stats> => {
+        const response = await fetch(`${API_BASE_URL}/admin/stats`);
+        return handleResponse<Stats>(response);
+    },
+
+    // Get Restaurants List
+    getRestaurants: async (
+        skip: number = 0,
+        limit: number = 20,
+        query: string = "",
+        filterWebsite: boolean | null = null,
+        filterEmail: boolean | null = null
+    ): Promise<{ restaurants: Restaurant[]; total: number }> => {
+        let url = `${API_BASE_URL}/admin/restaurants?skip=${skip}&limit=${limit}`;
+        if (query) {
+            url += `&query=${encodeURIComponent(query)}`;
+        }
+        if (filterWebsite !== null) {
+            url += `&websiteGenerated=${filterWebsite}`;
+        }
+        if (filterEmail !== null) {
+            url += `&emailSent=${filterEmail}`;
+        }
+        const response = await fetch(url);
+        return handleResponse<{ restaurants: Restaurant[]; total: number }>(
+            response
+        );
+    },
+
+    // Get Restaurant Detail
+    getRestaurant: async (id: string): Promise<Restaurant> => {
+        const response = await fetch(`${API_BASE_URL}/admin/restaurants/${id}`);
+        return handleResponse<Restaurant>(response);
+    },
+
+    // Update Restaurant
+    updateRestaurant: async (
+        id: string,
+        data: Partial<Restaurant>
+    ): Promise<Restaurant> => {
+        const response = await fetch(`${API_BASE_URL}/admin/restaurants/${id}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+        });
+        return handleResponse<Restaurant>(response);
+    },
+
+    // Delete Restaurant
+    deleteRestaurant: async (id: string): Promise<{ success: boolean }> => {
+        const response = await fetch(`${API_BASE_URL}/admin/restaurants/${id}`, {
+            method: "DELETE",
+        });
+        return handleResponse<{ success: boolean }>(response);
+    },
+    // Generate/Send Email
+    generateEmail: async (propertyId: string): Promise<{ success: boolean; message?: string }> => {
+        const response = await fetch(`${API_BASE_URL}/generateEmail?propertyId=${propertyId}`, {
+            method: "POST",
+        });
+        return handleResponse<{ success: boolean; message?: string }>(response);
+    },
+
+    // Get Email Content
+    getEmailContent: async (emailId: string): Promise<EmailDetail> => {
+        const response = await fetch(`${API_BASE_URL}/admin/emails/${emailId}`);
+        if (!response.ok) throw new Error("Failed to load email");
+        const data = await response.json();
+        return data;
+    },
+
+    // Generate Website Preview
+    generateThumbnail: async (slug: string): Promise<{ success: boolean; message?: string }> => {
+        const response = await fetch(`${API_BASE_URL}/websites/${slug}/thumbnail`, {
+            method: "POST",
+        });
+        return handleResponse<{ success: boolean; message?: string }>(response);
+    },
+
+    // Get Web Config (View)
+    getWebConfig: async (placeId: string): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/admin/restaurants/${placeId}/config`);
+        return handleResponse<any>(response);
+    },
+
+    // Update Web Config
+    updateWebConfig: async (placeId: string, config: any): Promise<any> => {
+        const response = await fetch(`${API_BASE_URL}/admin/restaurants/${placeId}/config`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(config),
+        });
+        return handleResponse<any>(response);
+    },
+
+    // Validate Domain
+    validateDomain: async (domain: string): Promise<{ available: boolean; message?: string }> => {
+        const response = await fetch(`${API_BASE_URL}/validate-domain?domain=${encodeURIComponent(domain)}`);
+        return handleResponse<{ available: boolean; message?: string }>(response);
+    },
+
+    // ── Payments ──────────────────────────────────────────────
+
+    // Get Payments List
+    getPayments: async (
+        skip: number = 0,
+        limit: number = 20,
+        query: string = ""
+    ): Promise<{ payments: Payment[]; total: number }> => {
+        let url = `${API_BASE_URL}/admin/payments?skip=${skip}&limit=${limit}`;
+        if (query) {
+            url += `&query=${encodeURIComponent(query)}`;
+        }
+        const response = await fetch(url);
+        return handleResponse<{ payments: Payment[]; total: number }>(response);
+    },
+
+    // Get Payment Detail
+    getPayment: async (id: string): Promise<Payment> => {
+        const response = await fetch(`${API_BASE_URL}/admin/payments/${id}`);
+        return handleResponse<Payment>(response);
+    },
+
+    // Delete Payment (soft delete)
+    deletePayment: async (id: string): Promise<{ success: boolean }> => {
+        const response = await fetch(`${API_BASE_URL}/admin/payments/${id}`, {
+            method: "DELETE",
+        });
+        return handleResponse<{ success: boolean }>(response);
+    },
+
+    // Update Payment (description & status only)
+    updatePayment: async (
+        id: string,
+        data: { description?: string; status?: string }
+    ): Promise<Payment> => {
+        const response = await fetch(`${API_BASE_URL}/admin/payments/${id}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+        });
+        return handleResponse<Payment>(response);
+    },
+};

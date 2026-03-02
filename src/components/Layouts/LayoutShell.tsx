@@ -1,0 +1,33 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import { Sidebar } from "@/components/Layouts/sidebar";
+import { Header } from "@/components/Layouts/header";
+import { useAuth } from "@/components/AuthContext";
+
+export function LayoutShell({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const { user } = useAuth();
+
+    const isAuthRoute = pathname.startsWith("/auth");
+
+    // Auth routes: render children only (no sidebar/header)
+    if (isAuthRoute || !user) {
+        return <>{children}</>;
+    }
+
+    // Dashboard routes: full layout with sidebar + header
+    return (
+        <div className="flex min-h-screen">
+            <Sidebar />
+
+            <div className="w-full bg-gray-2 dark:bg-[#020d1a]">
+                <Header />
+
+                <main className="isolate mx-auto w-full max-w-screen-2xl overflow-hidden p-4 md:p-6 2xl:p-10">
+                    {children}
+                </main>
+            </div>
+        </div>
+    );
+}
