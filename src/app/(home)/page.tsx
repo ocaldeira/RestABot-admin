@@ -6,6 +6,8 @@ import { OverviewCardsGroup } from "./_components/overview-cards";
 import { OverviewCardsSkeleton } from "./_components/overview-cards/skeleton";
 import { DashboardTitle } from "./_components/dashboard-title";
 
+export const dynamic = "force-dynamic";
+
 type PropsType = {
   searchParams: Promise<{
     selected_time_frame?: string;
