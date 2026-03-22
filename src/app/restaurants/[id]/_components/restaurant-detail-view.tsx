@@ -7,6 +7,7 @@ import { GlobeIcon, EyeIcon, MailIcon } from "@/components/Tables/icons";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import DomainValidator from "./DomainValidator";
+import { UploadIcon } from "@/assets/icons";
 
 const FONT_PAIRS = {
     "elegant": {
@@ -205,7 +206,7 @@ export function RestaurantDetailView({ id }: { id: string }) {
     const [formData, setFormData] = useState<Partial<Restaurant>>({});
 
     // Website Tab State
-    const [activeTab, setActiveTab] = useState<"general" | "website">("general");
+    const [activeTab, setActiveTab] = useState<"general" | "website" | "menu">("general");
     const [webConfig, setWebConfig] = useState<any | null>(null);
     const [loadingWebConfig, setLoadingWebConfig] = useState(false);
     const [generating, setGenerating] = useState(false);
@@ -215,6 +216,7 @@ export function RestaurantDetailView({ id }: { id: string }) {
     const [savingWebConfig, setSavingWebConfig] = useState(false);
     const [activeLang, setActiveLang] = useState("en");
     const [newDomain, setNewDomain] = useState("");
+    const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
     const handleConfigChange = (path: string, value: any) => {
         setWebConfig((prev: any) => {
@@ -243,13 +245,44 @@ export function RestaurantDetailView({ id }: { id: string }) {
         setNewDomain("");
     };
 
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, section: "hero" | "gallery" | "logo_main" | "logo_secondary") => {
+        const file = event.target.files?.[0];
+        if (!file || !restaurant?.id) return;
+
+        setUploading(prev => ({ ...prev, [section]: true }));
+        try {
+            // Upload to backend instead of direct Firebase
+            const { url: downloadURL } = await api.uploadFile(restaurant.id, file, section);
+
+            if (section === "hero") {
+                const currentImages = webConfig.config?.backgroundImages || [];
+                handleConfigChange("config.backgroundImages", [...currentImages, downloadURL]);
+            } else if (section === "gallery") {
+                const currentImages = webConfig.config?.galleryImages || [];
+                handleConfigChange("config.galleryImages", [...currentImages, downloadURL]);
+            } else if (section === "logo_main") {
+                handleConfigChange("config.logos.main", downloadURL);
+            } else if (section === "logo_secondary") {
+                handleConfigChange("config.logos.secondary", downloadURL);
+            }
+
+            // Clear input
+            event.target.value = "";
+        } catch (error) {
+            console.error("Upload failed:", error);
+            alert("Upload failed. Please ensure the backend is running and supports the upload endpoint.");
+        } finally {
+            setUploading(prev => ({ ...prev, [section]: false }));
+        }
+    };
+
     const handleSaveConfig = async () => {
         if (!restaurant?.id || !webConfig) return;
         setSavingWebConfig(true);
         try {
-            // Only send the configuration object, not the entire document (which includes _id, slug, etc.)
-            const payload = webConfig.config || webConfig;
-            await api.updateWebConfig(restaurant.id, payload);
+            // Send the configuration object wrapped in a 'config' key as expected by the backend
+            const configData = webConfig.config || webConfig;
+            await api.updateWebConfig(restaurant.id, { config: configData });
             alert("Website configuration saved!");
         } catch (error) {
             console.error("Failed to update web config:", error);
@@ -395,6 +428,15 @@ export function RestaurantDetailView({ id }: { id: string }) {
                         }`}
                 >
                     Website
+                </button>
+                <button
+                    onClick={() => setActiveTab("menu")}
+                    className={`pb-2 px-4 border-b-2 transition-colors ${activeTab === "menu"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white"
+                        }`}
+                >
+                    Menu
                 </button>
             </div>
 
@@ -651,7 +693,8 @@ export function RestaurantDetailView({ id }: { id: string }) {
                                                         <option value="visual_hero">Visual Hero (Default)</option>
                                                         <option value="fresh">Fresh</option>
                                                         <option value="clean_modern">Clean Modern</option>
-                                                        <option value="brand_minimal">Brand Minimal</option>
+                                                        <option value="moderna">Moderna</option>
+                                                        <option value="delici">Delici</option>
                                                     </select>
                                                 </div>
                                                 <div>
@@ -808,6 +851,36 @@ export function RestaurantDetailView({ id }: { id: string }) {
                                 <div className="rounded border border-stroke p-4 dark:border-strokedark">
                                     <h3 className="mb-4 font-semibold text-black dark:text-white">Hero Background Images</h3>
 
+                                    <div className="mb-6">
+                                        <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                                            Upload Custom Image
+                                        </label>
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="file"
+                                                id="hero-upload"
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={(e) => handleFileUpload(e, "hero")}
+                                                disabled={uploading["hero"]}
+                                            />
+                                            <label
+                                                htmlFor="hero-upload"
+                                                className="flex cursor-pointer items-center justify-center gap-2 rounded bg-primary px-4 py-2 font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
+                                            >
+                                                {uploading["hero"] ? (
+                                                    "Uploading..."
+                                                ) : (
+                                                    <>
+                                                        <UploadIcon className="w-5 h-5" />
+                                                        Upload Hero Image
+                                                    </>
+                                                )}
+                                            </label>
+                                            <p className="text-xs text-gray-500">Recommended: High resolution landscape</p>
+                                        </div>
+                                    </div>
+
                                     {/* Selected Images Sortable List */}
                                     {webConfig.config?.backgroundImages && webConfig.config.backgroundImages.length > 0 && (
                                         <div className="mb-6">
@@ -920,6 +993,232 @@ export function RestaurantDetailView({ id }: { id: string }) {
                                     )}
                                 </div>
 
+                                {/* Gallery Images */}
+                                <div className="rounded border border-stroke p-4 dark:border-strokedark">
+                                    <h3 className="mb-4 font-semibold text-black dark:text-white">Gallery Images</h3>
+
+                                    <div className="mb-6">
+                                        <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                                            Upload to Gallery
+                                        </label>
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="file"
+                                                id="gallery-upload"
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={(e) => handleFileUpload(e, "gallery")}
+                                                disabled={uploading["gallery"]}
+                                            />
+                                            <label
+                                                htmlFor="gallery-upload"
+                                                className="flex cursor-pointer items-center justify-center gap-2 rounded bg-primary px-4 py-2 font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
+                                            >
+                                                {uploading["gallery"] ? (
+                                                    "Uploading..."
+                                                ) : (
+                                                    <>
+                                                        <UploadIcon className="w-5 h-5" />
+                                                        Upload Gallery Image
+                                                    </>
+                                                )}
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Selected Gallery Images Sortable List */}
+                                    {webConfig.config?.galleryImages && webConfig.config.galleryImages.length > 0 && (
+                                        <div className="mb-6">
+                                            <h4 className="mb-2 text-sm font-medium">Selected Images (Ordered)</h4>
+                                            <p className="mb-3 text-xs text-gray-500">Reorder images to control the gallery display sequence.</p>
+                                            <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
+                                                {webConfig.config.galleryImages.map((img: string, idx: number) => (
+                                                    <div key={`gallery-${img}-${idx}`} className="relative flex-none w-32 h-32 rounded-lg overflow-hidden border border-stroke snap-center group">
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img src={img} alt={`Gallery ${idx + 1}`} className="w-full h-full object-cover" />
+
+                                                        {/* Controls Overlay */}
+                                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (idx > 0) {
+                                                                            const newImages = [...webConfig.config.galleryImages];
+                                                                            [newImages[idx - 1], newImages[idx]] = [newImages[idx], newImages[idx - 1]];
+                                                                            handleConfigChange("config.galleryImages", newImages);
+                                                                        }
+                                                                    }}
+                                                                    disabled={idx === 0}
+                                                                    className="p-1 bg-white text-black rounded hover:bg-gray-200 disabled:opacity-50"
+                                                                    title="Move Left"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (idx < webConfig.config.galleryImages.length - 1) {
+                                                                            const newImages = [...webConfig.config.galleryImages];
+                                                                            [newImages[idx + 1], newImages[idx]] = [newImages[idx], newImages[idx + 1]];
+                                                                            handleConfigChange("config.galleryImages", newImages);
+                                                                        }
+                                                                    }}
+                                                                    disabled={idx === webConfig.config.galleryImages.length - 1}
+                                                                    className="p-1 bg-white text-black rounded hover:bg-gray-200 disabled:opacity-50"
+                                                                    title="Move Right"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                                                                </button>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const newImages = webConfig.config.galleryImages.filter((_: string, i: number) => i !== idx);
+                                                                    handleConfigChange("config.galleryImages", newImages);
+                                                                }}
+                                                                className="px-2 py-1 bg-red text-white text-xs rounded hover:bg-opacity-90"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Order Badge */}
+                                                        <div className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
+                                                            {idx + 1}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <h4 className="mb-2 text-sm font-medium">Available Photos</h4>
+                                    <p className="mb-4 text-sm text-gray-500">Select images from Google Maps photos to use in the gallery.</p>
+
+                                    {restaurant.photos && restaurant.photos.length > 0 ? (
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
+                                            {restaurant.photos.slice(0, 20).map((photo, index) => {
+                                                const isSelected = webConfig.config?.galleryImages?.includes(photo);
+                                                return (
+                                                    <div
+                                                        key={`gallery-pick-${index}`}
+                                                        onClick={() => {
+                                                            const currentImages = webConfig.config?.galleryImages || [];
+                                                            let newImages;
+                                                            if (isSelected) {
+                                                                newImages = currentImages.filter((img: string) => img !== photo);
+                                                            } else {
+                                                                newImages = [...currentImages, photo];
+                                                            }
+                                                            handleConfigChange("config.galleryImages", newImages);
+                                                        }}
+                                                        className={`relative aspect-square cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${isSelected
+                                                            ? "border-primary ring-2 ring-primary ring-opacity-50"
+                                                            : "border-transparent hover:border-gray-300 dark:hover:border-gray-600"
+                                                            }`}
+                                                    >
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img
+                                                            src={photo}
+                                                            alt={`Restaurant photo ${index + 1}`}
+                                                            className={`w-full h-full object-cover transition-opacity ${isSelected ? "opacity-100" : "opacity-70 hover:opacity-100"}`}
+                                                        />
+                                                        {isSelected && (
+                                                            <div className="absolute top-2 right-2 bg-primary text-white rounded-full p-1 shadow-md">
+                                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic">No photos available for this restaurant.</p>
+                                    )}
+                                </div>
+                                {/* Logo Management */}
+                                <div className="rounded border border-stroke p-4 dark:border-strokedark">
+                                    <h3 className="mb-4 font-semibold text-black dark:text-white">Logos</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {/* Main Logo */}
+                                        <div className="space-y-4">
+                                            <h4 className="font-medium text-sm">Main Logo (Dark Background)</h4>
+                                            <div className="mt-2 flex items-center gap-4">
+                                                <div className="relative h-20 w-20 rounded border border-stroke bg-gray-100 dark:bg-meta-4 flex items-center justify-center overflow-hidden">
+                                                    {webConfig.config?.logos?.main ? (
+                                                        <img src={webConfig.config.logos.main} alt="Main Logo" className="object-contain w-full h-full" />
+                                                    ) : (
+                                                        <span className="text-xs text-center p-2 text-gray-500 italic">No logo uploaded</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <input
+                                                        type="file"
+                                                        id="logo-main-upload"
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        onChange={(e) => handleFileUpload(e, "logo_main")}
+                                                        disabled={uploading["logo_main"]}
+                                                    />
+                                                    <label
+                                                        htmlFor="logo-main-upload"
+                                                        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
+                                                    >
+                                                        {uploading["logo_main"] ? "Uploading..." : "Upload Logo"}
+                                                    </label>
+                                                    {webConfig.config?.logos?.main && (
+                                                        <button
+                                                            onClick={() => handleConfigChange("config.logos.main", null)}
+                                                            className="block mt-2 text-xs text-red hover:underline"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Secondary Logo */}
+                                        <div className="space-y-4">
+                                            <h4 className="font-medium text-sm">Secondary Logo (Light Background)</h4>
+                                            <div className="mt-2 flex items-center gap-4">
+                                                <div className="relative h-20 w-20 rounded border border-stroke bg-gray-100 dark:bg-meta-4 flex items-center justify-center overflow-hidden">
+                                                    {webConfig.config?.logos?.secondary ? (
+                                                        <img src={webConfig.config.logos.secondary} alt="Secondary Logo" className="object-contain w-full h-full" />
+                                                    ) : (
+                                                        <span className="text-xs text-center p-2 text-gray-500 italic">No logo uploaded</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <input
+                                                        type="file"
+                                                        id="logo-sec-upload"
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        onChange={(e) => handleFileUpload(e, "logo_secondary")}
+                                                        disabled={uploading["logo_secondary"]}
+                                                    />
+                                                    <label
+                                                        htmlFor="logo-sec-upload"
+                                                        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
+                                                    >
+                                                        {uploading["logo_secondary"] ? "Uploading..." : "Upload Logo"}
+                                                    </label>
+                                                    {webConfig.config?.logos?.secondary && (
+                                                        <button
+                                                            onClick={() => handleConfigChange("config.logos.secondary", null)}
+                                                            className="block mt-2 text-xs text-red hover:underline"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Localization Section */}
                                 <div className="rounded border border-stroke p-4 dark:border-strokedark">
                                     <h3 className="mb-4 font-semibold text-black dark:text-white">Localization</h3>
@@ -1013,30 +1312,98 @@ export function RestaurantDetailView({ id }: { id: string }) {
                                                     onChange={(e) => handleConfigChange(`config.content.${activeLang}.meta.description`, e.target.value)}
                                                 />
                                             </div>
-                                            <div>
-                                                <label className="mb-2 block text-sm font-medium">Hero Title ({activeLang})</label>
-                                                <input
-                                                    className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
-                                                    value={webConfig.config?.content?.[activeLang]?.hero?.title || ""}
-                                                    onChange={(e) => handleConfigChange(`config.content.${activeLang}.hero.title`, e.target.value)}
-                                                />
+                                            <div className="pt-4 border-t border-stroke dark:border-strokedark">
+                                                <h4 className="mb-4 font-semibold text-sm">Hero Section</h4>
+                                                <div className="grid grid-cols-1 gap-4">
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">Hero Headline ({activeLang})</label>
+                                                        <input
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            value={webConfig.config?.content?.[activeLang]?.hero?.headline || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.hero.headline`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">Hero Subheadline ({activeLang})</label>
+                                                        <textarea
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            rows={2}
+                                                            value={webConfig.config?.content?.[activeLang]?.hero?.subheadline || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.hero.subheadline`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">Logo Subtitle ({activeLang})</label>
+                                                        <input
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            value={webConfig.config?.content?.[activeLang]?.hero?.logo_subtitle || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.hero.logo_subtitle`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">CTA Button Text ({activeLang})</label>
+                                                        <input
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            value={webConfig.config?.content?.[activeLang]?.hero?.cta || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.hero.cta`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <label className="mb-2 block text-sm font-medium">Hero Subtitle ({activeLang})</label>
-                                                <textarea
-                                                    className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
-                                                    rows={2}
-                                                    value={webConfig.config?.content?.[activeLang]?.hero?.subtitle || ""}
-                                                    onChange={(e) => handleConfigChange(`config.content.${activeLang}.hero.subtitle`, e.target.value)}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="mb-2 block text-sm font-medium">CTA Button Text ({activeLang})</label>
-                                                <input
-                                                    className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
-                                                    value={webConfig.config?.content?.[activeLang]?.hero?.cta || ""}
-                                                    onChange={(e) => handleConfigChange(`config.content.${activeLang}.hero.cta`, e.target.value)}
-                                                />
+
+                                            <div className="pt-4 border-t border-stroke dark:border-strokedark">
+                                                <h4 className="mb-4 font-semibold text-sm">About Section</h4>
+                                                <div className="grid grid-cols-1 gap-4">
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">Subtitle ({activeLang})</label>
+                                                        <input
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            value={webConfig.config?.content?.[activeLang]?.about?.subtitle || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.about.subtitle`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">Title ({activeLang})</label>
+                                                        <input
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            value={webConfig.config?.content?.[activeLang]?.about?.title || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.about.title`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">Description ({activeLang})</label>
+                                                        <textarea
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            rows={3}
+                                                            value={webConfig.config?.content?.[activeLang]?.about?.description || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.about.description`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">CTA Button ({activeLang})</label>
+                                                        <input
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            value={webConfig.config?.content?.[activeLang]?.about?.cta || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.about.cta`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">Years of Experience ({activeLang})</label>
+                                                        <input
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            value={webConfig.config?.content?.[activeLang]?.about?.yearsOfExperience || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.about.yearsOfExperience`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-medium">Image URL</label>
+                                                        <input
+                                                            className="w-full rounded border border-stroke bg-transparent px-4 py-2 outline-none focus:border-primary dark:border-form-strokedark"
+                                                            value={webConfig.config?.content?.[activeLang]?.about?.image || ""}
+                                                            onChange={(e) => handleConfigChange(`config.content.${activeLang}.about.image`, e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1140,6 +1507,39 @@ export function RestaurantDetailView({ id }: { id: string }) {
                                 {loadingWebConfig ? "Loading configuration..." : "No website configuration found. Click 'Generate Website' to create one."}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {activeTab === "menu" && (
+                    <div className="space-y-6">
+                        <div className="rounded border border-stroke p-4 dark:border-strokedark">
+                            <h3 className="mb-4 font-semibold text-black dark:text-white">Menu Editor</h3>
+                            <p className="mb-4 text-sm text-gray-500">Edit the restaurant menu data in JSON format.</p>
+
+                            <textarea
+                                className="w-full rounded border border-stroke bg-transparent px-4 py-4 font-mono text-sm outline-none focus:border-primary dark:border-form-strokedark"
+                                rows={20}
+                                defaultValue={webConfig?.config?.menu ? JSON.stringify(webConfig.config.menu, null, 2) : "[\n  {\n    \"category\": \"Starters\",\n    \"items\": []\n  }\n]"}
+                                onBlur={(e) => {
+                                    try {
+                                        const parsed = JSON.parse(e.target.value);
+                                        handleConfigChange("config.menu", parsed);
+                                    } catch (err) {
+                                        alert("Invalid JSON format. Please correct it before saving.");
+                                    }
+                                }}
+                            />
+
+                            <div className="mt-4 flex justify-end">
+                                <button
+                                    onClick={handleSaveConfig}
+                                    disabled={savingWebConfig}
+                                    className="flex justify-center rounded bg-primary px-6 py-2.5 font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
+                                >
+                                    {savingWebConfig ? "Saving..." : "Save Menu"}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div >

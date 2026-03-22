@@ -75,6 +75,7 @@ export interface WebConfig {
     defaultLanguage?: string;
     content: Record<string, any>;
     backgroundImages?: string[];
+    galleryImages?: string[];
     slug?: string;
     thumbnail?: string;
     socials?: {
@@ -89,6 +90,10 @@ export interface WebConfig {
         whatsapp?: string;
     };
     suggested_domains?: string[];
+    logos?: {
+        main?: string;
+        secondary?: string;
+    };
 }
 
 export interface SearchResult {

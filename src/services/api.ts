@@ -198,4 +198,18 @@ export const api = {
         });
         return handleResponse<Payment>(response);
     },
+
+    // Upload Logo/Image to Backend
+    uploadFile: async (placeId: string, file: File, type: "logo_main" | "logo_secondary" | "hero" | "gallery"): Promise<{ url: string }> => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", type);
+
+        const response = await fetch(`${API_BASE_URL}/admin/restaurants/${placeId}/upload`, {
+            method: "POST",
+            body: formData,
+            // Note: Don't set Content-Type header, browser will set it with boundary
+        });
+        return handleResponse<{ url: string }>(response);
+    },
 };
