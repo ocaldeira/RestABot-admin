@@ -3,11 +3,13 @@
 import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
 import { api } from "@/services/api";
 import { Restaurant, WebConfig } from "@/types/restaurant";
-import { GlobeIcon, EyeIcon, MailIcon } from "@/components/Tables/icons";
+import { GlobeIcon, EyeIcon, MailIcon, SyncIcon } from "@/components/Tables/icons";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import DomainValidator from "./DomainValidator";
 import { UploadIcon } from "@/assets/icons";
+import { EmailPreviewModal } from "@/components/EmailPreviewModal";
+import { MenuEditor } from "./MenuEditor";
 
 const FONT_PAIRS = {
     "elegant": {
@@ -212,11 +214,14 @@ export function RestaurantDetailView({ id }: { id: string }) {
     const [generating, setGenerating] = useState(false);
     const [generatingPreview, setGeneratingPreview] = useState(false);
     const [sending, setSending] = useState(false);
+    const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
     const [savingWebConfig, setSavingWebConfig] = useState(false);
     const [activeLang, setActiveLang] = useState("en");
     const [newDomain, setNewDomain] = useState("");
     const [uploading, setUploading] = useState<Record<string, boolean>>({});
+    const [uploadingMenuImages, setUploadingMenuImages] = useState(false);
+    const [syncingPhotos, setSyncingPhotos] = useState(false);
 
     const handleConfigChange = (path: string, value: any) => {
         setWebConfig((prev: any) => {
@@ -273,6 +278,39 @@ export function RestaurantDetailView({ id }: { id: string }) {
             alert("Upload failed. Please ensure the backend is running and supports the upload endpoint.");
         } finally {
             setUploading(prev => ({ ...prev, [section]: false }));
+        }
+    };
+
+    const handleUploadMenuImages = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (!files || files.length === 0 || !restaurant?.id) return;
+
+        setUploadingMenuImages(true);
+        try {
+            const result = await api.uploadMenuPhotos(restaurant.id, files);
+            if (result.menu) {
+                // Construct the new menu structure { title, subtitle, categories }
+                const newMenuStructure = {
+                    title: "Menu",
+                    subtitle: "",
+                    categories: Array.isArray(result.menu)
+                        ? result.menu.map((cat: any) => ({
+                            name: cat.category || cat.name || "Category",
+                            items: cat.items || []
+                        }))
+                        : []
+                };
+
+                // Populate the menu editor for the current active language
+                handleConfigChange(`config.content.${activeLang}.menu`, newMenuStructure);
+                alert(`¡Menú (${activeLang.toUpperCase()}) escaneado y transcrito con éxito!`);
+            }
+        } catch (error: any) {
+            console.error("AI Transcription failed:", error);
+            alert(error.message || "Hubo un error analizando las imágenes del menú.");
+        } finally {
+            setUploadingMenuImages(false);
+            event.target.value = ""; // reset input
         }
     };
 
@@ -362,19 +400,31 @@ export function RestaurantDetailView({ id }: { id: string }) {
         }
     };
 
-    const handleSendCommunication = async () => {
+    const handleSyncPhotos = async (force: boolean = false) => {
         if (!restaurant?.id) return;
-
-        setSending(true);
+        setSyncingPhotos(true);
         try {
-            await api.generateEmail(restaurant.id);
-            alert("Email sent successfully!");
+            const result = await api.syncRestaurantPhotos(restaurant.id, force);
+            if (result.status === "skipped") {
+                alert("Este restaurante ya está sincronizado.");
+            } else if (result.status === "success") {
+                alert(`¡Éxito! Se migraron ${result.newLY_uploaded} fotos nuevas a Azure.`);
+                // Refetch restaurant data to show new photos
+                const data = await api.getRestaurant(id);
+                setRestaurant(data);
+                setFormData(data);
+            }
         } catch (error: any) {
-            console.error("Error sending email:", error);
-            alert(error.message || "Failed to send email.");
+            console.error("Error en la sincronización:", error);
+            alert(error.message || "Error al sincronizar fotos.");
         } finally {
-            setSending(false);
+            setSyncingPhotos(false);
         }
+    };
+
+    const handleSendCommunication = () => {
+        if (!restaurant?.id) return;
+        setPreviewModalOpen(true);
     };
 
     const handleSave = async () => {
@@ -669,10 +719,35 @@ export function RestaurantDetailView({ id }: { id: string }) {
                                             <MailIcon className="w-5 h-5 mr-2" />
                                             Send Email
                                         </button>
+
+                                        <button
+                                            onClick={() => handleSyncPhotos(false)}
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                if (confirm("¿Forzar sincronización completa?")) {
+                                                    handleSyncPhotos(true);
+                                                }
+                                            }}
+                                            disabled={syncingPhotos}
+                                            className="flex items-center justify-center p-2.5 rounded border border-meta-3 text-meta-3 hover:bg-meta-3 hover:text-white transition-colors disabled:opacity-70"
+                                            title="Sync Photos from Google (Right click to force)"
+                                        >
+                                            <SyncIcon className={`w-5 h-5 mr-2 ${syncingPhotos ? 'animate-spin' : ''}`} />
+                                            {syncingPhotos ? "Syncing..." : "Sync Photos"}
+                                        </button>
+
+                                        <a
+                                            href={`${process.env.NEXT_PUBLIC_GENERATED_WEB_URL}/${webConfig.slug}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-center p-2.5 rounded bg-black text-white hover:bg-opacity-90 transition-colors"
+                                        >
+                                            <GlobeIcon className="w-5 h-5 mr-2" />
+                                            View Website
+                                        </a>
                                     </>
                                 )}
                             </div>
-
                         </div>
 
                         {webConfig ? (
@@ -1512,23 +1587,66 @@ export function RestaurantDetailView({ id }: { id: string }) {
 
                 {activeTab === "menu" && (
                     <div className="space-y-6">
-                        <div className="rounded border border-stroke p-4 dark:border-strokedark">
-                            <h3 className="mb-4 font-semibold text-black dark:text-white">Menu Editor</h3>
-                            <p className="mb-4 text-sm text-gray-500">Edit the restaurant menu data in JSON format.</p>
+                        <div className="rounded border border-stroke p-4 dark:border-strokedark bg-gray-50 dark:bg-meta-4 mb-6">
+                            <h4 className="mb-2 font-semibold text-black dark:text-white flex items-center gap-2">
+                                <UploadIcon className="w-5 h-5 text-primary" />
+                                Transcripción de Menú con IA
+                            </h4>
+                            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                                Sube fotos de tu menú físico. Nuestra Inteligencia Artificial las analizará y las convertirá en formato digital estructurado automáticamente. (Toma de 5 a 15 segundos)
+                            </p>
 
-                            <textarea
-                                className="w-full rounded border border-stroke bg-transparent px-4 py-4 font-mono text-sm outline-none focus:border-primary dark:border-form-strokedark"
-                                rows={20}
-                                defaultValue={webConfig?.config?.menu ? JSON.stringify(webConfig.config.menu, null, 2) : "[\n  {\n    \"category\": \"Starters\",\n    \"items\": []\n  }\n]"}
-                                onBlur={(e) => {
-                                    try {
-                                        const parsed = JSON.parse(e.target.value);
-                                        handleConfigChange("config.menu", parsed);
-                                    } catch (err) {
-                                        alert("Invalid JSON format. Please correct it before saving.");
-                                    }
-                                }}
-                            />
+                            <div className="flex items-center gap-4">
+                                <label className="relative cursor-pointer w-full sm:w-auto">
+                                    <input
+                                        type="file"
+                                        multiple
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={handleUploadMenuImages}
+                                        disabled={uploadingMenuImages}
+                                    />
+                                    <div className={`flex w-full sm:w-auto items-center justify-center rounded px-6 py-2.5 font-medium text-white transition-colors ${uploadingMenuImages ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-opacity-90'}`}>
+                                        {uploadingMenuImages ? 'Analizando imágenes con Inteligencia Artificial... 🤖' : 'Subir fotos del menú'}
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="rounded border border-stroke p-4 dark:border-strokedark">
+                            {webConfig ? (
+                                <>
+                                    <div className="mb-6 flex items-center justify-between">
+                                        <h3 className="font-semibold text-black dark:text-white">Menu Editor</h3>
+                                        {/* Language Tabs for Menu */}
+                                        <div className="flex gap-2 bg-gray-2 dark:bg-meta-4 rounded p-1">
+                                            {webConfig.config?.languages?.map((lang: string) => (
+                                                <button
+                                                    key={lang}
+                                                    onClick={() => setActiveLang(lang)}
+                                                    className={`px-3 py-1 text-sm rounded transition-colors ${activeLang === lang
+                                                        ? "bg-white dark:bg-gray-dark shadow text-black dark:text-white"
+                                                        : "text-gray-500 hover:text-black dark:hover:text-white"
+                                                        }`}
+                                                >
+                                                    {lang.toUpperCase()}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <p className="mb-6 text-sm text-gray-500">Add categories and specific items to build your interactive menu layout for the <strong>{activeLang.toUpperCase()}</strong> version.</p>
+
+                                    <MenuEditor
+                                        key={`${activeLang}-${webConfig?.id}`} // Force re-render on language change
+                                        menuData={webConfig?.config?.content?.[activeLang]?.menu || {}}
+                                        onChange={(newMenu) => handleConfigChange(`config.content.${activeLang}.menu`, newMenu)}
+                                    />
+                                </>
+                            ) : (
+                                <div className="text-center py-6 text-gray-400">
+                                    No website configuration found. Generate a website first to use the Menu Editor.
+                                </div>
+                            )}
 
                             <div className="mt-4 flex justify-end">
                                 <button
@@ -1543,6 +1661,21 @@ export function RestaurantDetailView({ id }: { id: string }) {
                     </div>
                 )}
             </div >
+
+            {/* Email Preview Modal */}
+            {
+                previewModalOpen && restaurant?.id && (
+                    <EmailPreviewModal
+                        propertyId={restaurant.id}
+                        onClose={(sent) => {
+                            setPreviewModalOpen(false);
+                            if (sent) {
+                                alert("Email sent successfully!");
+                            }
+                        }}
+                    />
+                )
+            }
         </>
     );
 }

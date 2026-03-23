@@ -106,10 +106,26 @@ export const api = {
         });
         return handleResponse<{ success: boolean }>(response);
     },
-    // Generate/Send Email
-    generateEmail: async (propertyId: string): Promise<{ success: boolean; message?: string }> => {
-        const response = await fetch(`${API_BASE_URL}/generateEmail?propertyId=${propertyId}`, {
+    // Generate/Send Email (or Preview)
+    generateEmail: async (propertyId: string, preview: boolean = false): Promise<{ success: boolean; message?: string; draft?: any }> => {
+        const url = preview
+            ? `${API_BASE_URL}/generateEmail?propertyId=${propertyId}&preview=true`
+            : `${API_BASE_URL}/generateEmail?propertyId=${propertyId}`;
+
+        const response = await fetch(url, {
             method: "POST",
+        });
+        return handleResponse<{ success: boolean; message?: string; draft?: any }>(response);
+    },
+
+    // Send Draft Email
+    sendDraftEmail: async (draft: any): Promise<{ success: boolean; message?: string }> => {
+        const response = await fetch(`${API_BASE_URL}/sendDraftEmail`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(draft),
         });
         return handleResponse<{ success: boolean; message?: string }>(response);
     },
@@ -211,5 +227,34 @@ export const api = {
             // Note: Don't set Content-Type header, browser will set it with boundary
         });
         return handleResponse<{ url: string }>(response);
+    },
+
+    // Upload Menu Photos for AI Transcription
+    uploadMenuPhotos: async (placeId: string, files: FileList | File[]): Promise<{ menu: any[] }> => {
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append("files", files[i]);
+        }
+
+        const response = await fetch(`${API_BASE_URL}/admin/restaurants/${placeId}/menu/upload`, {
+            method: "POST",
+            body: formData,
+        });
+        return handleResponse<{ menu: any[] }>(response);
+    },
+
+    // Sync Restaurant Photos from Google to Azure
+    syncRestaurantPhotos: async (placeId: string, force: boolean = false): Promise<{
+        status: 'success' | 'skipped';
+        newLY_uploaded?: number;
+        total_photos_in_db?: number;
+        message?: string;
+    }> => {
+        const url = `${API_BASE_URL}/admin/restaurants/${placeId}/sync-photos${force ? '?force=true' : ''}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        return handleResponse(response);
     },
 };

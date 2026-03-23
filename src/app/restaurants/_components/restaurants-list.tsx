@@ -6,6 +6,7 @@ import { Restaurant } from "@/types/restaurant";
 import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/modal";
 import { EmailViewer } from "@/components/EmailViewer";
+import { EmailPreviewModal } from "@/components/EmailPreviewModal";
 import { createPortal } from "react-dom";
 import { PreviewIcon, GlobeIcon, MailIcon, TrashIcon, EyeIcon } from "@/components/Tables/icons";
 import { usePageTitle } from "@/components/PageTitleContext";
@@ -33,6 +34,7 @@ export function RestaurantsList() {
     const [searchQuery, setSearchQuery] = useState("");
 
     const [viewingEmailId, setViewingEmailId] = useState<string | null>(null);
+    const [previewingEmailForId, setPreviewingEmailForId] = useState<string | null>(null);
 
     const limit = 20;
 
@@ -120,20 +122,9 @@ export function RestaurantsList() {
         }
     };
 
-    const handleSendCommunication = async () => {
+    const handleSendCommunication = () => {
         if (!selectedRestaurant?.id) return;
-
-        setSending(true);
-        try {
-            // Using restaurant.id which corresponds to propertyId/Google Place ID
-            await api.generateEmail(selectedRestaurant.id);
-            setModal({ isOpen: true, title: "Success", message: "Email sent successfully!", type: "success" });
-        } catch (error: any) {
-            console.error("Error sending email:", error);
-            setModal({ isOpen: true, title: "Error", message: error.message || "Failed to send email.", type: "error" });
-        } finally {
-            setSending(false);
-        }
+        setPreviewingEmailForId(selectedRestaurant.id);
     };
 
     const handleGeneratePreview = async (restaurant?: Restaurant) => {
@@ -644,6 +635,21 @@ export function RestaurantsList() {
                 <EmailViewer
                     emailId={viewingEmailId}
                     onClose={() => setViewingEmailId(null)}
+                />
+            )}
+
+            {/* Email Preview Modal */}
+            {previewingEmailForId && (
+                <EmailPreviewModal
+                    propertyId={previewingEmailForId}
+                    onClose={(sent) => {
+                        setPreviewingEmailForId(null);
+                        if (sent) {
+                            setModal({ isOpen: true, title: "Success", message: "Email sent successfully!", type: "success" });
+                            // Optionally refetch list to update the 'Email Sent' badge
+                            fetchRestaurants();
+                        }
+                    }}
                 />
             )}
         </>
