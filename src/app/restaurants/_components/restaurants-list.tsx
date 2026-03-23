@@ -7,8 +7,9 @@ import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/modal";
 import { EmailViewer } from "@/components/EmailViewer";
 import { EmailPreviewModal } from "@/components/EmailPreviewModal";
+import { WhatsAppPreviewModal } from "@/components/WhatsAppPreviewModal";
 import { createPortal } from "react-dom";
-import { PreviewIcon, GlobeIcon, MailIcon, TrashIcon, EyeIcon } from "@/components/Tables/icons";
+import { PreviewIcon, GlobeIcon, MailIcon, TrashIcon, EyeIcon, PhoneIcon, WhatsAppIcon } from "@/components/Tables/icons";
 import { usePageTitle } from "@/components/PageTitleContext";
 
 
@@ -30,17 +31,21 @@ export function RestaurantsList() {
     }>({ isOpen: false, title: "", message: "", type: "info" });
 
     const [filterWebsite, setFilterWebsite] = useState<boolean | null>(null); // null = all, true = generated, false = not
-    const [filterEmail, setFilterEmail] = useState<boolean | null>(null);
+    const [filterEmail, setFilterEmail] = useState<boolean | null>(null); // null = all, true = sent, false = not sent
+    const [filterHasWebsite, setFilterHasWebsite] = useState<boolean | null>(null);
+    const [filterHasEmail, setFilterHasEmail] = useState<boolean | null>(null);
+    const [filterHasPhone, setFilterHasPhone] = useState<boolean | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
 
     const [viewingEmailId, setViewingEmailId] = useState<string | null>(null);
     const [previewingEmailForId, setPreviewingEmailForId] = useState<string | null>(null);
+    const [previewingWhatsAppForId, setPreviewingWhatsAppForId] = useState<string | null>(null);
 
     const limit = 20;
 
     useEffect(() => {
         fetchRestaurants();
-    }, [page, filterWebsite, filterEmail]); // Added filter dependencies
+    }, [page, filterWebsite, filterEmail, filterHasWebsite, filterHasEmail, filterHasPhone]); // Added filter dependencies
 
     const { setPageTitle } = usePageTitle();
 
@@ -52,7 +57,16 @@ export function RestaurantsList() {
         setLoading(true);
         try {
             const skip = (page - 1) * limit;
-            const data = await api.getRestaurants(skip, limit, searchQuery, filterWebsite, filterEmail); // Pass searchQuery and filters
+            const data = await api.getRestaurants(
+                skip,
+                limit,
+                searchQuery,
+                filterWebsite,
+                filterEmail,
+                filterHasWebsite,
+                filterHasEmail,
+                filterHasPhone
+            ); // Pass searchQuery and filters
             setRestaurants(data.restaurants);
             setTotal(data.total);
         } catch (error) {
@@ -125,6 +139,11 @@ export function RestaurantsList() {
     const handleSendCommunication = () => {
         if (!selectedRestaurant?.id) return;
         setPreviewingEmailForId(selectedRestaurant.id);
+    };
+
+    const handleSendWhatsApp = () => {
+        if (!selectedRestaurant?.id) return;
+        setPreviewingWhatsAppForId(selectedRestaurant.id);
     };
 
     const handleGeneratePreview = async (restaurant?: Restaurant) => {
@@ -215,7 +234,7 @@ export function RestaurantsList() {
                                 </h2>
                                 <div className="flex gap-2 mt-2">
                                     {restaurant.websiteGenerated && (
-                                        <span className="inline-flex rounded-full bg-success bg-opacity-10 px-3 py-1 text-sm font-medium text-success">
+                                        <span className="inline-flex rounded-full bg-green bg-opacity-10 px-3 py-1 text-sm font-medium text-green">
                                             Website Generated
                                         </span>
                                     )}
@@ -269,9 +288,17 @@ export function RestaurantsList() {
                                         onClick={handleSendCommunication}
                                         disabled={sending}
                                         className="flex items-center justify-center p-2.5 rounded border border-meta-5 text-meta-5 hover:bg-meta-5 hover:text-white transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-                                        title="Send Communication"
+                                        title="Send Email"
                                     >
                                         <MailIcon className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                        onClick={handleSendWhatsApp}
+                                        disabled={sending}
+                                        className="flex items-center justify-center p-2.5 rounded border border-green text-green hover:bg-green hover:text-white transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                                        title="Send WhatsApp"
+                                    >
+                                        <WhatsAppIcon className="w-5 h-5" />
                                     </button>
                                 </>
                             )}
@@ -400,7 +427,7 @@ export function RestaurantsList() {
                         )}
 
                         {/* Email History */}
-                        {restaurant.emailSent && restaurant.emails && restaurant.emails.length > 0 && (
+                        {restaurant.emails && restaurant.emails.length > 0 && (
                             <div>
                                 <h3 className="mb-3 text-lg font-semibold text-black dark:text-white">Email History</h3>
                                 <div className="space-y-2">
@@ -416,6 +443,23 @@ export function RestaurantsList() {
                                             >
                                                 View
                                             </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* WhatsApp History */}
+                        {restaurant.whatsapp_logs && restaurant.whatsapp_logs.length > 0 && (
+                            <div className="mt-6">
+                                <h3 className="mb-3 text-lg font-semibold text-black dark:text-white">WhatsApp History</h3>
+                                <div className="space-y-2">
+                                    {restaurant.whatsapp_logs.map((log: any, i: number) => (
+                                        <div key={i} className="flex items-center justify-between p-3 bg-gray-2 dark:bg-dark-2 rounded-lg border border-stroke dark:border-strokedark">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium text-black dark:text-white">WhatsApp Message</span>
+                                                <span className="text-xs text-gray-500">{new Date(log.sent_at || log.sentAt).toLocaleString()}</span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -468,24 +512,52 @@ export function RestaurantsList() {
                         </div>
 
                         {/* Filters */}
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                             <button
                                 onClick={() => setFilterWebsite(filterWebsite === true ? null : true)}
-                                className={`px-3 py-1 text-sm rounded-full border ${filterWebsite === true
+                                className={`px-3 py-1 text-sm rounded-full border transition-all ${filterWebsite === true
+                                    ? "bg-green text-white border-green"
+                                    : "bg-white text-gray-500 border-stroke dark:bg-gray-dark dark:text-gray-400 dark:border-strokedark hover:border-green hover:text-green"
+                                    }`}
+                            >
+                                Web Generated
+                            </button>
+                            <button
+                                onClick={() => setFilterEmail(filterEmail === true ? null : true)}
+                                className={`px-3 py-1 text-sm rounded-full border transition-all ${filterEmail === true
                                     ? "bg-primary text-white border-primary"
-                                    : "bg-white text-gray-500 border-stroke dark:bg-gray-dark dark:text-gray-400 dark:border-strokedark"
+                                    : "bg-white text-gray-500 border-stroke dark:bg-gray-dark dark:text-gray-400 dark:border-strokedark hover:border-primary hover:text-primary"
+                                    }`}
+                            >
+                                Email Sent
+                            </button>
+                            <div className="h-6 w-[1.5px] bg-stroke dark:bg-strokedark mx-1 hidden sm:block"></div>
+                            <button
+                                onClick={() => setFilterHasWebsite(filterHasWebsite === true ? null : true)}
+                                className={`px-3 py-1 text-sm rounded-full border transition-all ${filterHasWebsite === true
+                                    ? "bg-gray-800 text-white border-gray-800 dark:bg-white dark:text-black"
+                                    : "bg-white text-gray-500 border-stroke dark:bg-gray-dark dark:text-gray-400 dark:border-strokedark hover:border-gray-800 dark:hover:border-white"
                                     }`}
                             >
                                 Has Website
                             </button>
                             <button
-                                onClick={() => setFilterEmail(filterEmail === true ? null : true)}
-                                className={`px-3 py-1 text-sm rounded-full border ${filterEmail === true
-                                    ? "bg-primary text-white border-primary"
-                                    : "bg-white text-gray-500 border-stroke dark:bg-gray-dark dark:text-gray-400 dark:border-strokedark"
+                                onClick={() => setFilterHasEmail(filterHasEmail === true ? null : true)}
+                                className={`px-3 py-1 text-sm rounded-full border transition-all ${filterHasEmail === true
+                                    ? "bg-gray-800 text-white border-gray-800 dark:bg-white dark:text-black"
+                                    : "bg-white text-gray-500 border-stroke dark:bg-gray-dark dark:text-gray-400 dark:border-strokedark hover:border-gray-800 dark:hover:border-white"
                                     }`}
                             >
-                                Email Sent
+                                Has Email
+                            </button>
+                            <button
+                                onClick={() => setFilterHasPhone(filterHasPhone === true ? null : true)}
+                                className={`px-3 py-1 text-sm rounded-full border transition-all ${filterHasPhone === true
+                                    ? "bg-gray-800 text-white border-gray-800 dark:bg-white dark:text-black"
+                                    : "bg-white text-gray-500 border-stroke dark:bg-gray-dark dark:text-gray-400 dark:border-strokedark hover:border-gray-800 dark:hover:border-white"
+                                    }`}
+                            >
+                                Has Phone
                             </button>
                         </div>
                     </div>
@@ -496,14 +568,14 @@ export function RestaurantsList() {
                         <div className="flex flex-col">
                             {/* Table Header */}
                             <div className="grid grid-cols-12 rounded-t-[10px] bg-gray-2 px-4 py-4.5 dark:bg-dark-2 md:px-6 2xl:px-7.5">
-                                <div className="col-span-6 flex items-center">
+                                <div className="col-span-5 flex items-center">
                                     <p className="font-medium">Restaurant Info</p>
                                 </div>
-                                <div className="col-span-3 hidden items-center sm:flex">
-                                    <p className="font-medium">Status</p>
+                                <div className="col-span-3 flex items-center">
+                                    <p className="font-medium">Contact & Status</p>
                                 </div>
-                                <div className="col-span-2 flex items-center">
-                                    <p className="font-medium">Rating</p>
+                                <div className="col-span-3 hidden items-center sm:flex">
+                                    <p className="font-medium">Web & Last Email</p>
                                 </div>
                                 <div className="col-span-1 flex items-center justify-end">
                                     <p className="font-medium">View</p>
@@ -513,76 +585,102 @@ export function RestaurantsList() {
                             {restaurants
                                 ?.map((item, key) => (
                                     <div
-                                        className={`grid grid-cols-12 border-t border-stroke px-4 py-4.5 dark:border-strokedark md:px-6 2xl:px-7.5 ${key === restaurants.length - 1 ? "" : "border-b"
+                                        className={`grid grid-cols-12 border-t border-stroke px-4 py-4.5 dark:border-strokedark md:px-6 2xl:px-7.5 items-center hover:bg-gray-50 dark:hover:bg-meta-4/20 transition-colors ${key === restaurants.length - 1 ? "" : "border-b"
                                             }`}
                                         key={item._id || key}
                                     >
-                                        <div className="col-span-6 flex items-center gap-4">
-                                            {item.photos && item.photos.length > 0 && (
-                                                <div className="h-16 w-16 rounded-md min-w-[64px] overflow-hidden">
-                                                    <img
-                                                        src={item.photos[0]}
-                                                        alt="Restaurant"
-                                                        className="h-full w-full object-cover"
-                                                    />
+                                        <div className="col-span-5 flex items-center gap-4">
+                                            <div className="relative">
+                                                {item.photos && item.photos.length > 0 ? (
+                                                    <div className="h-14 w-14 rounded-md min-w-[56px] overflow-hidden border border-stroke dark:border-strokedark">
+                                                        <img
+                                                            src={item.photos[0]}
+                                                            alt="Restaurant"
+                                                            className="h-full w-full object-cover"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-14 w-14 rounded-md min-w-[56px] flex items-center justify-center bg-gray-100 dark:bg-gray-800 border border-stroke dark:border-strokedark">
+                                                        <GlobeIcon className="text-gray-400" />
+                                                    </div>
+                                                )}
+                                                <div className="absolute -top-2 -right-2 flex flex-col gap-1">
+                                                    <div className="h-6 w-6 rounded-full bg-white dark:bg-gray-dark border border-stroke dark:border-strokedark flex items-center justify-center text-[10px] font-bold shadow-sm">
+                                                        {item.rating}
+                                                    </div>
                                                 </div>
-                                            )}
+                                            </div>
                                             <div className="flex flex-col gap-1 w-full overflow-hidden">
-                                                <p className="text-lg font-bold text-black dark:text-white truncate">
+                                                <p className="text-base font-bold text-black dark:text-white truncate">
                                                     {item.name}
                                                 </p>
-                                                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
-                                                    {item.address && (
-                                                        <span className="truncate max-w-[200px]" title={item.address}>
-                                                            {item.address}
-                                                        </span>
-                                                    )}
-                                                    {item.address && item.phone && <span>•</span>}
-                                                    {item.phone && <span>{item.phone}</span>}
+                                                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                    <span className="truncate" title={item.address}>
+                                                        {item.address}
+                                                    </span>
                                                 </div>
-                                                {item.website && (
-                                                    <a
-                                                        href={item.website}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-sm text-primary hover:underline truncate w-fit"
-                                                    >
-                                                        {item.website}
-                                                    </a>
-                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="col-span-3 hidden items-center sm:flex gap-2">
-                                            {item.websiteGenerated && (
-                                                <a
-                                                    href={`${process.env.NEXT_PUBLIC_GENERATED_WEB_URL}/${item.websiteSlug || item._id}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex rounded-full bg-success bg-opacity-10 px-3 py-1 text-sm font-medium text-success hover:bg-opacity-20 transition-all cursor-pointer"
-                                                >
-                                                    Web
-                                                </a>
-                                            )}
-                                            {item.emailSent && (
-                                                <span className="inline-flex rounded-full bg-primary bg-opacity-10 px-3 py-1 text-sm font-medium text-primary">
-                                                    Email
-                                                </span>
-                                            )}
+                                        <div className="col-span-3 flex flex-col gap-2">
+                                            <div className="flex items-center gap-3">
+                                                {/* Phone */}
+                                                <div className={`p-1.5 rounded-md ${item.phone ? 'text-black dark:text-white bg-gray-100 dark:bg-gray-800' : 'text-gray-300 dark:text-gray-600 opacity-50'}`}>
+                                                    <PhoneIcon width={16} height={16} />
+                                                </div>
+                                                {/* WhatsApp */}
+                                                <div className={`p-1.5 rounded-md ${item.web_config?.contact?.whatsapp ? 'text-green bg-green/10' : 'text-gray-300 dark:text-gray-600 opacity-50'}`}>
+                                                    <WhatsAppIcon width={16} height={16} />
+                                                </div>
+                                                {/* Email Status */}
+                                                <div className={`p-1.5 rounded-md ${item.web_config?.contact?.email || item.emailSent ? 'text-primary bg-primary/10' : 'text-gray-300 dark:text-gray-600 opacity-50'}`}>
+                                                    <MailIcon width={16} height={16} />
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col text-[11px] text-gray-400">
+                                                {item.phone && <span className="truncate">{item.phone}</span>}
+                                                {item.web_config?.contact?.whatsapp && <span className="truncate text-green">{item.web_config.contact.whatsapp}</span>}
+                                            </div>
                                         </div>
-                                        <div className="col-span-2 flex items-center">
-                                            <p className="text-sm text-black dark:text-white">
-                                                {item.rating} ({item.user_ratings_total})
-                                            </p>
+
+                                        <div className="col-span-3 hidden sm:flex flex-col gap-2">
+                                            <div className="flex items-center gap-2">
+                                                {item.websiteGenerated ? (
+                                                    <a
+                                                        href={`${process.env.NEXT_PUBLIC_GENERATED_WEB_URL}/${item.websiteSlug || item._id}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex rounded-full bg-green bg-opacity-10 px-3 py-0.5 text-xs font-medium text-green hover:bg-opacity-20 transition-all border border-green/20"
+                                                    >
+                                                        Web Live
+                                                    </a>
+                                                ) : (
+                                                    <span className="inline-flex rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-0.5 text-xs font-medium text-gray-400 border border-stroke dark:border-strokedark">
+                                                        No Web
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {item.emailSent && (
+                                                <div className="flex flex-col">
+                                                    <span className="text-[11px] font-semibold text-primary">
+                                                        Email Enviado
+                                                    </span>
+                                                    {item.emails && item.emails.length > 0 && (item.emails[0].sent_at || item.emails[0].sentAt) && (
+                                                        <span className="text-[10px] text-gray-400">
+                                                            {new Date(item.emails[0].sent_at || item.emails[0].sentAt || "").toLocaleDateString()}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="col-span-1 flex items-center justify-end">
                                             <button
                                                 onClick={() => setSelectedRestaurant(item)}
-                                                className="hover:text-primary transition-colors p-2"
+                                                className="hover:text-primary hover:bg-primary/10 transition-all p-2.5 rounded-full"
                                                 title="View Details"
                                             >
-                                                <PreviewIcon />
+                                                <PreviewIcon className="w-5 h-5" />
                                             </button>
                                         </div>
                                     </div>
@@ -647,6 +745,20 @@ export function RestaurantsList() {
                         if (sent) {
                             setModal({ isOpen: true, title: "Success", message: "Email sent successfully!", type: "success" });
                             // Optionally refetch list to update the 'Email Sent' badge
+                            fetchRestaurants();
+                        }
+                    }}
+                />
+            )}
+            {/* WhatsApp Preview Modal */}
+            {previewingWhatsAppForId && (
+                <WhatsAppPreviewModal
+                    propertyId={previewingWhatsAppForId}
+                    phoneNumber={selectedRestaurant?.web_config?.contact?.whatsapp || selectedRestaurant?.phone}
+                    onClose={(sent) => {
+                        setPreviewingWhatsAppForId(null);
+                        if (sent) {
+                            setModal({ isOpen: true, title: "Success", message: "WhatsApp message prepared!", type: "success" });
                             fetchRestaurants();
                         }
                     }}

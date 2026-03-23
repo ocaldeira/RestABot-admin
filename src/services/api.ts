@@ -60,7 +60,10 @@ export const api = {
         limit: number = 20,
         query: string = "",
         filterWebsite: boolean | null = null,
-        filterEmail: boolean | null = null
+        filterEmail: boolean | null = null,
+        hasWebsite: boolean | null = null,
+        hasEmail: boolean | null = null,
+        hasPhone: boolean | null = null
     ): Promise<{ restaurants: Restaurant[]; total: number }> => {
         let url = `${API_BASE_URL}/admin/restaurants?skip=${skip}&limit=${limit}`;
         if (query) {
@@ -71,6 +74,15 @@ export const api = {
         }
         if (filterEmail !== null) {
             url += `&emailSent=${filterEmail}`;
+        }
+        if (hasWebsite !== null) {
+            url += `&hasWebsite=${hasWebsite}`;
+        }
+        if (hasEmail !== null) {
+            url += `&hasEmail=${hasEmail}`;
+        }
+        if (hasPhone !== null) {
+            url += `&hasPhone=${hasPhone}`;
         }
         const response = await fetch(url);
         return handleResponse<{ restaurants: Restaurant[]; total: number }>(
@@ -120,7 +132,7 @@ export const api = {
 
     // Send Draft Email
     sendDraftEmail: async (draft: any): Promise<{ success: boolean; message?: string }> => {
-        const response = await fetch(`${API_BASE_URL}/sendDraftEmail`, {
+        const response = await fetch(`${API_BASE_URL}/admin/send-email`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -128,6 +140,27 @@ export const api = {
             body: JSON.stringify(draft),
         });
         return handleResponse<{ success: boolean; message?: string }>(response);
+    },
+
+    // Generate WhatsApp Message (AI)
+    generateWhatsApp: async (propertyId: string, preview: boolean = false): Promise<{ success: boolean; message?: string; draft?: any }> => {
+        const url = preview
+            ? `${API_BASE_URL}/admin/generate-whatsapp?propertyId=${propertyId}&preview=true`
+            : `${API_BASE_URL}/admin/generate-whatsapp?propertyId=${propertyId}`;
+        const response = await fetch(url, { method: "POST" });
+        return handleResponse<{ success: boolean; message?: string; draft?: any }>(response);
+    },
+
+    // Send WhatsApp (Register log and get wa.me link)
+    sendDraftWhatsApp: async (draft: any): Promise<{ success: boolean; whatsapp_url: string }> => {
+        const response = await fetch(`${API_BASE_URL}/admin/send-whatsapp`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(draft),
+        });
+        return handleResponse<{ success: boolean; whatsapp_url: string }>(response);
     },
 
     // Get Email Content

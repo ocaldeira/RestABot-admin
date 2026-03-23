@@ -3,13 +3,14 @@
 import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
 import { api } from "@/services/api";
 import { Restaurant, WebConfig } from "@/types/restaurant";
-import { GlobeIcon, EyeIcon, MailIcon, SyncIcon } from "@/components/Tables/icons";
+import { GlobeIcon, EyeIcon, MailIcon, SyncIcon, WhatsAppIcon } from "@/components/Tables/icons";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import DomainValidator from "./DomainValidator";
 import { UploadIcon } from "@/assets/icons";
 import { EmailPreviewModal } from "@/components/EmailPreviewModal";
 import { MenuEditor } from "./MenuEditor";
+import { WhatsAppPreviewModal } from "@/components/WhatsAppPreviewModal";
 
 const FONT_PAIRS = {
     "elegant": {
@@ -215,6 +216,7 @@ export function RestaurantDetailView({ id }: { id: string }) {
     const [generatingPreview, setGeneratingPreview] = useState(false);
     const [sending, setSending] = useState(false);
     const [previewModalOpen, setPreviewModalOpen] = useState(false);
+    const [whatsappPreviewModalOpen, setWhatsappPreviewModalOpen] = useState(false);
 
     const [savingWebConfig, setSavingWebConfig] = useState(false);
     const [activeLang, setActiveLang] = useState("en");
@@ -425,6 +427,11 @@ export function RestaurantDetailView({ id }: { id: string }) {
     const handleSendCommunication = () => {
         if (!restaurant?.id) return;
         setPreviewModalOpen(true);
+    };
+
+    const handleSendWhatsApp = () => {
+        if (!restaurant?.id) return;
+        setWhatsappPreviewModalOpen(true);
     };
 
     const handleSave = async () => {
@@ -714,10 +721,20 @@ export function RestaurantDetailView({ id }: { id: string }) {
                                             onClick={handleSendCommunication}
                                             disabled={sending}
                                             className="flex items-center justify-center p-2.5 rounded border border-meta-5 text-meta-5 hover:bg-meta-5 hover:text-white transition-colors disabled:opacity-70"
-                                            title="Send Communication"
+                                            title="Send Email"
                                         >
                                             <MailIcon className="w-5 h-5 mr-2" />
-                                            Send Email
+                                            Email
+                                        </button>
+
+                                        <button
+                                            onClick={handleSendWhatsApp}
+                                            disabled={sending}
+                                            className="flex items-center justify-center p-2.5 rounded border border-green text-green hover:bg-green hover:text-white transition-colors disabled:opacity-70"
+                                            title="Send WhatsApp"
+                                        >
+                                            <WhatsAppIcon className="w-5 h-5 mr-2" />
+                                            WhatsApp
                                         </button>
 
                                         <button
@@ -1662,7 +1679,7 @@ export function RestaurantDetailView({ id }: { id: string }) {
                 )}
             </div >
 
-            {/* Email Preview Modal */}
+            {/* Communication Modals */}
             {
                 previewModalOpen && restaurant?.id && (
                     <EmailPreviewModal
@@ -1671,6 +1688,20 @@ export function RestaurantDetailView({ id }: { id: string }) {
                             setPreviewModalOpen(false);
                             if (sent) {
                                 alert("Email sent successfully!");
+                            }
+                        }}
+                    />
+                )
+            }
+            {
+                whatsappPreviewModalOpen && restaurant?.id && (
+                    <WhatsAppPreviewModal
+                        propertyId={restaurant.id}
+                        phoneNumber={webConfig?.contact?.whatsapp || restaurant?.phone}
+                        onClose={(sent) => {
+                            setWhatsappPreviewModalOpen(false);
+                            if (sent) {
+                                alert("WhatsApp message prepared!");
                             }
                         }}
                     />

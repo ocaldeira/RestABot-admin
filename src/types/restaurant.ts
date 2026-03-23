@@ -46,6 +46,14 @@ export interface Restaurant {
         sentAt?: string;
         status: string;
     }>;
+    whatsappSent?: boolean;
+    whatsapp_logs?: Array<{
+        id: string;
+        content: string;
+        sent_at?: string;
+        sentAt?: string;
+        status: string;
+    }>;
 }
 
 export interface EmailDetail {
