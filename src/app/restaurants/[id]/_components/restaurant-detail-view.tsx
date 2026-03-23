@@ -3,7 +3,7 @@
 import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
 import { api } from "@/services/api";
 import { Restaurant, WebConfig } from "@/types/restaurant";
-import { GlobeIcon, EyeIcon, MailIcon, SyncIcon, WhatsAppIcon } from "@/components/Tables/icons";
+import { GlobeIcon, EyeIcon, MailIcon, SyncIcon, WhatsAppIcon, TrashIcon } from "@/components/Tables/icons";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import DomainValidator from "./DomainValidator";
@@ -466,6 +466,95 @@ export function RestaurantDetailView({ id }: { id: string }) {
         <>
             <Breadcrumb pageName={restaurant.name} />
 
+            {/* Global Actions Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white dark:bg-gray-dark p-4 rounded-[10px] shadow-1 dark:shadow-card">
+                <div className="flex flex-wrap gap-4">
+                    <button
+                        onClick={handleGenerateWeb}
+                        disabled={generating}
+                        className="flex items-center justify-center p-2.5 rounded bg-primary text-white hover:bg-opacity-90 disabled:opacity-70 text-sm font-medium transition-all"
+                    >
+                        <GlobeIcon className="w-5 h-5 mr-2" />
+                        {generating ? "Generating..." : "Generate Website"}
+                    </button>
+
+                    {webConfig?.slug && (
+                        <>
+                            <button
+                                onClick={handleGeneratePreview}
+                                disabled={generatingPreview}
+                                className="flex items-center justify-center p-2.5 rounded border border-primary text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-70 text-sm font-medium"
+                                title="Generate Preview"
+                            >
+                                <EyeIcon className="w-5 h-5 mr-2" />
+                                Update Preview
+                            </button>
+
+                            <button
+                                onClick={handleSendCommunication}
+                                disabled={sending}
+                                className="flex items-center justify-center p-2.5 rounded border border-meta-5 text-meta-5 hover:bg-meta-5 hover:text-white transition-colors disabled:opacity-70 text-sm font-medium"
+                                title="Send Email"
+                            >
+                                <MailIcon className="w-5 h-5 mr-2" />
+                                Email
+                            </button>
+
+                            <button
+                                onClick={handleSendWhatsApp}
+                                disabled={sending}
+                                className="flex items-center justify-center p-2.5 rounded border border-green text-green hover:bg-green hover:text-white transition-colors disabled:opacity-70 text-sm font-medium"
+                                title="Send WhatsApp"
+                            >
+                                <WhatsAppIcon className="w-5 h-5 mr-2" />
+                                WhatsApp
+                            </button>
+
+                            <button
+                                onClick={() => handleSyncPhotos(false)}
+                                onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    if (confirm("¿Forzar sincronización completa?")) {
+                                        handleSyncPhotos(true);
+                                    }
+                                }}
+                                disabled={syncingPhotos}
+                                className="flex items-center justify-center p-2.5 rounded border border-meta-3 text-meta-3 hover:bg-meta-3 hover:text-white transition-colors disabled:opacity-70 text-sm font-medium"
+                                title="Sync Photos from Google (Right click to force)"
+                            >
+                                <SyncIcon className={`w-5 h-5 mr-2 ${syncingPhotos ? 'animate-spin' : ''}`} />
+                                {syncingPhotos ? "Syncing..." : "Sync Photos"}
+                            </button>
+
+                            <a
+                                href={`${process.env.NEXT_PUBLIC_GENERATED_WEB_URL}/${webConfig.slug}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center p-2.5 rounded bg-black text-white hover:bg-opacity-90 transition-colors text-sm font-medium"
+                            >
+                                <GlobeIcon className="w-5 h-5 mr-2" />
+                                View Website
+                            </a>
+                        </>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-4">
+                    {restaurant.notInterested && (
+                        <span className="inline-flex rounded-full bg-red-500 bg-opacity-10 px-3 py-1 text-sm font-bold text-red-500 uppercase tracking-wide animate-pulse">
+                            Not Interested
+                        </span>
+                    )}
+                    <button
+                        onClick={handleDelete}
+                        className="flex items-center justify-center p-2.5 rounded border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-all text-sm font-medium"
+                    >
+                        <TrashIcon className="w-5 h-5 mr-2" />
+                        Delete Restaurant
+                    </button>
+                </div>
+            </div>
+
             {/* Tabs */}
             <div className="mb-6 flex gap-4 border-b border-stroke dark:border-strokedark">
                 <button
@@ -541,16 +630,52 @@ export function RestaurantDetailView({ id }: { id: string }) {
                             <div className="w-full sm:w-1/2">
                                 <label
                                     className="mb-3 block text-sm font-medium text-black dark:text-white"
-                                    htmlFor="phone"
+                                    htmlFor="phone_number"
                                 >
                                     Phone
                                 </label>
                                 <input
                                     className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                                     type="text"
-                                    name="phone"
-                                    id="phone"
-                                    value={formData.phone || ""}
+                                    name="phone_number"
+                                    id="phone_number"
+                                    value={formData.phone_number || formData.phone || ""}
+                                    onChange={handleChange}
+                                />
+                            </div>
+
+                            <div className="w-full sm:w-1/2">
+                                <label
+                                    className="mb-3 block text-sm font-medium text-black dark:text-white"
+                                    htmlFor="email"
+                                >
+                                    Email
+                                </label>
+                                <input
+                                    className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                    type="email"
+                                    name="email"
+                                    id="email"
+                                    value={formData.email || ""}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mb-5.5 flex flex-col gap-5.5 sm:flex-row">
+                            <div className="w-full sm:w-1/2">
+                                <label
+                                    className="mb-3 block text-sm font-medium text-black dark:text-white"
+                                    htmlFor="whatsapp"
+                                >
+                                    WhatsApp
+                                </label>
+                                <input
+                                    className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                    type="text"
+                                    name="whatsapp"
+                                    id="whatsapp"
+                                    value={formData.whatsapp || ""}
                                     onChange={handleChange}
                                 />
                             </div>
@@ -693,84 +818,10 @@ export function RestaurantDetailView({ id }: { id: string }) {
 
                 {activeTab === "website" && (
                     <div className="space-y-6">
-                        {/* Top Actions */}
-                        <div className="flex flex-wrap items-center justify-between gap-4">
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={handleGenerateWeb}
-                                    disabled={generating}
-                                    className="flex items-center justify-center p-2.5 rounded bg-primary text-white hover:bg-opacity-90 disabled:opacity-70"
-                                >
-                                    <GlobeIcon className="w-5 h-5 mr-2" />
-                                    {generating ? "Generating..." : "Generate Website"}
-                                </button>
-
-                                {webConfig?.slug && (
-                                    <>
-                                        <button
-                                            onClick={handleGeneratePreview}
-                                            disabled={generatingPreview}
-                                            className="flex items-center justify-center p-2.5 rounded border border-primary text-primary hover:bg-primary hover:text-white transition-colors disabled:opacity-70"
-                                            title="Generate Preview"
-                                        >
-                                            <EyeIcon className="w-5 h-5 mr-2" />
-                                            Update Preview
-                                        </button>
-
-                                        <button
-                                            onClick={handleSendCommunication}
-                                            disabled={sending}
-                                            className="flex items-center justify-center p-2.5 rounded border border-meta-5 text-meta-5 hover:bg-meta-5 hover:text-white transition-colors disabled:opacity-70"
-                                            title="Send Email"
-                                        >
-                                            <MailIcon className="w-5 h-5 mr-2" />
-                                            Email
-                                        </button>
-
-                                        <button
-                                            onClick={handleSendWhatsApp}
-                                            disabled={sending}
-                                            className="flex items-center justify-center p-2.5 rounded border border-green text-green hover:bg-green hover:text-white transition-colors disabled:opacity-70"
-                                            title="Send WhatsApp"
-                                        >
-                                            <WhatsAppIcon className="w-5 h-5 mr-2" />
-                                            WhatsApp
-                                        </button>
-
-                                        <button
-                                            onClick={() => handleSyncPhotos(false)}
-                                            onContextMenu={(e) => {
-                                                e.preventDefault();
-                                                if (confirm("¿Forzar sincronización completa?")) {
-                                                    handleSyncPhotos(true);
-                                                }
-                                            }}
-                                            disabled={syncingPhotos}
-                                            className="flex items-center justify-center p-2.5 rounded border border-meta-3 text-meta-3 hover:bg-meta-3 hover:text-white transition-colors disabled:opacity-70"
-                                            title="Sync Photos from Google (Right click to force)"
-                                        >
-                                            <SyncIcon className={`w-5 h-5 mr-2 ${syncingPhotos ? 'animate-spin' : ''}`} />
-                                            {syncingPhotos ? "Syncing..." : "Sync Photos"}
-                                        </button>
-
-                                        <a
-                                            href={`${process.env.NEXT_PUBLIC_GENERATED_WEB_URL}/${webConfig.slug}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center justify-center p-2.5 rounded bg-black text-white hover:bg-opacity-90 transition-colors"
-                                        >
-                                            <GlobeIcon className="w-5 h-5 mr-2" />
-                                            View Website
-                                        </a>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
                         {webConfig ? (
                             <div className="space-y-8">
                                 {/* Design Section */}
-                                <div className="rounded border border-stroke p-4 dark:border-strokedark">
+                                < div className="rounded border border-stroke p-4 dark:border-strokedark" >
                                     <div className="flex flex-col lg:flex-row gap-8">
                                         <div className="flex-1 space-y-4">
                                             <h3 className="font-semibold text-black dark:text-white">Design</h3>
@@ -1599,7 +1650,7 @@ export function RestaurantDetailView({ id }: { id: string }) {
                                 {loadingWebConfig ? "Loading configuration..." : "No website configuration found. Click 'Generate Website' to create one."}
                             </div>
                         )}
-                    </div>
+                    </div >
                 )}
 
                 {activeTab === "menu" && (
@@ -1677,7 +1728,7 @@ export function RestaurantDetailView({ id }: { id: string }) {
                         </div>
                     </div>
                 )}
-            </div >
+            </div>
 
             {/* Communication Modals */}
             {

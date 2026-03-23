@@ -9,7 +9,7 @@ import { EmailViewer } from "@/components/EmailViewer";
 import { EmailPreviewModal } from "@/components/EmailPreviewModal";
 import { WhatsAppPreviewModal } from "@/components/WhatsAppPreviewModal";
 import { createPortal } from "react-dom";
-import { PreviewIcon, GlobeIcon, MailIcon, TrashIcon, EyeIcon, PhoneIcon, WhatsAppIcon } from "@/components/Tables/icons";
+import { PreviewIcon, GlobeIcon, MailIcon, TrashIcon, EyeIcon, PhoneIcon, WhatsAppIcon, DownloadIcon } from "@/components/Tables/icons";
 import { usePageTitle } from "@/components/PageTitleContext";
 
 
@@ -35,6 +35,7 @@ export function RestaurantsList() {
     const [filterHasWebsite, setFilterHasWebsite] = useState<boolean | null>(null);
     const [filterHasEmail, setFilterHasEmail] = useState<boolean | null>(null);
     const [filterHasPhone, setFilterHasPhone] = useState<boolean | null>(null);
+    const [filterIncludeNotInterested, setFilterIncludeNotInterested] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
     const [viewingEmailId, setViewingEmailId] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export function RestaurantsList() {
 
     useEffect(() => {
         fetchRestaurants();
-    }, [page, filterWebsite, filterEmail, filterHasWebsite, filterHasEmail, filterHasPhone]); // Added filter dependencies
+    }, [page, filterWebsite, filterEmail, filterHasWebsite, filterHasEmail, filterHasPhone, filterIncludeNotInterested]); // Added filter dependencies
 
     const { setPageTitle } = usePageTitle();
 
@@ -65,7 +66,8 @@ export function RestaurantsList() {
                 filterEmail,
                 filterHasWebsite,
                 filterHasEmail,
-                filterHasPhone
+                filterHasPhone,
+                filterIncludeNotInterested
             ); // Pass searchQuery and filters
             setRestaurants(data.restaurants);
             setTotal(data.total);
@@ -110,6 +112,26 @@ export function RestaurantsList() {
         } catch (error) {
             console.error("Failed to delete restaurant:", error);
             setModal({ isOpen: true, title: "Error", message: "Failed to delete restaurant", type: "error" });
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    const handleMarkNotInterested = async (id: string) => {
+        if (!id || !confirm("Are you sure you want to mark this restaurant as 'Not Interested'? This will hide it from the default view."))
+            return;
+
+        setDeleting(true); // Reusing deleting state for now, could be a new state like `markingNotInterested`
+        try {
+            await api.markRestaurantNotInterested(id); // Assuming this API call exists
+            setModal({ isOpen: true, title: "Success", message: "Restaurant marked as 'Not Interested' successfully", type: "success" });
+            fetchRestaurants(); // Refresh the list
+            if (selectedRestaurant?._id === id || selectedRestaurant?.id === id) {
+                setSelectedRestaurant(null); // Close drawer if the marked restaurant was open
+            }
+        } catch (error) {
+            console.error("Failed to mark restaurant as not interested:", error);
+            setModal({ isOpen: true, title: "Error", message: "Failed to mark restaurant as 'Not Interested'", type: "error" });
         } finally {
             setDeleting(false);
         }
@@ -243,6 +265,11 @@ export function RestaurantsList() {
                                             Email Sent
                                         </span>
                                     )}
+                                    {restaurant.notInterested && (
+                                        <span className="inline-flex rounded-full bg-red-500 bg-opacity-10 px-3 py-1 text-sm font-bold text-red-500 uppercase tracking-wide">
+                                            Not Interested
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -339,7 +366,15 @@ export function RestaurantsList() {
                                 </div>
                                 <div>
                                     <p className="text-gray-500 dark:text-gray-400 mb-1">Phone</p>
-                                    <p className="text-black dark:text-white">{restaurant.phone || "N/A"}</p>
+                                    <p className="text-black dark:text-white">{restaurant.phone_number || restaurant.phone || "N/A"}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 dark:text-gray-400 mb-1">Email</p>
+                                    <p className="text-black dark:text-white break-all">{restaurant.email || "N/A"}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-500 dark:text-gray-400 mb-1">WhatsApp</p>
+                                    <p className="text-black dark:text-white">{restaurant.whatsapp || "N/A"}</p>
                                 </div>
                                 <div>
                                     <p className="text-gray-500 dark:text-gray-400 mb-1">Website</p>
@@ -559,6 +594,16 @@ export function RestaurantsList() {
                             >
                                 Has Phone
                             </button>
+                            <div className="h-6 w-[1.5px] bg-stroke dark:bg-strokedark mx-1 hidden sm:block"></div>
+                            <button
+                                onClick={() => setFilterIncludeNotInterested(!filterIncludeNotInterested)}
+                                className={`px-3 py-1 text-sm rounded-full border transition-all ${filterIncludeNotInterested
+                                    ? "bg-red-500 text-white border-red-500"
+                                    : "bg-white text-gray-500 border-stroke dark:bg-gray-dark dark:text-gray-400 dark:border-strokedark hover:border-red-500 hover:text-red-500"
+                                    }`}
+                            >
+                                {filterIncludeNotInterested ? "Showing Discarded" : "Show Discarded"}
+                            </button>
                         </div>
                     </div>
 
@@ -614,6 +659,11 @@ export function RestaurantsList() {
                                                 <p className="text-base font-bold text-black dark:text-white truncate">
                                                     {item.name}
                                                 </p>
+                                                {item.notInterested && (
+                                                    <span className="text-[10px] font-bold text-red-500 uppercase tracking-wide">
+                                                        Not Interested
+                                                    </span>
+                                                )}
                                                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
                                                     <span className="truncate" title={item.address}>
                                                         {item.address}
@@ -674,13 +724,24 @@ export function RestaurantsList() {
                                             )}
                                         </div>
 
-                                        <div className="col-span-1 flex items-center justify-end">
+                                        <div className="col-span-1 flex items-center justify-end gap-2 pr-1">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const id = item.id || item._id;
+                                                    if (id) handleMarkNotInterested(id);
+                                                }}
+                                                className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                                                title="Mark as Not Interested"
+                                            >
+                                                <TrashIcon className="w-5 h-5" />
+                                            </button>
                                             <button
                                                 onClick={() => setSelectedRestaurant(item)}
-                                                className="hover:text-primary hover:bg-primary/10 transition-all p-2.5 rounded-full"
-                                                title="View Details"
+                                                className="inline-flex items-center gap-2 rounded-lg bg-primary py-1.5 px-3 text-sm font-medium text-white hover:bg-opacity-90 transition-all shadow-sm"
                                             >
-                                                <PreviewIcon className="w-5 h-5" />
+                                                <PreviewIcon className="fill-white" />
+                                                View
                                             </button>
                                         </div>
                                     </div>

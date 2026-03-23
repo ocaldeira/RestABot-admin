@@ -63,7 +63,8 @@ export const api = {
         filterEmail: boolean | null = null,
         hasWebsite: boolean | null = null,
         hasEmail: boolean | null = null,
-        hasPhone: boolean | null = null
+        hasPhone: boolean | null = null,
+        includeNotInterested: boolean = false
     ): Promise<{ restaurants: Restaurant[]; total: number }> => {
         let url = `${API_BASE_URL}/admin/restaurants?skip=${skip}&limit=${limit}`;
         if (query) {
@@ -84,6 +85,9 @@ export const api = {
         if (hasPhone !== null) {
             url += `&hasPhone=${hasPhone}`;
         }
+        if (includeNotInterested) {
+            url += `&includeNotInterested=true`;
+        }
         const response = await fetch(url);
         return handleResponse<{ restaurants: Restaurant[]; total: number }>(
             response
@@ -102,13 +106,18 @@ export const api = {
         data: Partial<Restaurant>
     ): Promise<Restaurant> => {
         const response = await fetch(`${API_BASE_URL}/admin/restaurants/${id}`, {
-            method: "PUT",
+            method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify(data),
         });
         return handleResponse<Restaurant>(response);
+    },
+
+    // Mark as Not Interested
+    markRestaurantNotInterested: async (id: string): Promise<Restaurant> => {
+        return api.updateRestaurant(id, { notInterested: true });
     },
 
     // Delete Restaurant

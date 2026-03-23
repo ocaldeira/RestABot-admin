@@ -54,6 +54,10 @@ export interface Restaurant {
         sentAt?: string;
         status: string;
     }>;
+    notInterested?: boolean;
+    email?: string;
+    whatsapp?: string;
+    phone_number?: string;
 }
 
 export interface EmailDetail {
